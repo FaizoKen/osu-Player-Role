@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Linked players — osu! Player Role</title>
+  <link rel="icon" href="{{BASE_URL}}/favicon.ico">
+  <style>
+    :root {
+      --bg: #0f1115; --card: #161a23; --border: #2a2f3a;
+      --text: #e8eaed; --muted: #9aa3b2; --osu: #ff66aa;
+      --success: #58e1a2; --warning: #fbbf24; --danger: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); margin: 0;
+      padding: 32px 20px; line-height: 1.5;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; }
+    .header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 20px; flex-wrap: wrap; margin-bottom: 16px;
+    }
+    h1 { margin: 0; font-size: 22px; font-weight: 700; }
+    .sub { color: var(--muted); font-size: 13px; }
+    .stats {
+      color: var(--muted); font-size: 13px;
+      background: var(--card); border: 1px solid var(--border);
+      padding: 6px 12px; border-radius: 8px;
+    }
+    .search {
+      width: 100%; background: var(--card); border: 1px solid var(--border);
+      color: var(--text); padding: 10px 14px; border-radius: 8px;
+      font-family: inherit; font-size: 14px; margin-bottom: 14px;
+    }
+    .search:focus { outline: none; border-color: var(--osu); }
+    table {
+      width: 100%; border-collapse: collapse;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden;
+    }
+    th, td {
+      padding: 10px 12px; text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    th {
+      background: #1a1f2a; color: #cbd0db; font-weight: 600;
+      font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+      position: sticky; top: 0;
+    }
+    tr:last-child td { border-bottom: 0; }
+    tr:hover td { background: rgba(255,102,170,.04); }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    a.osu-link { color: var(--osu); text-decoration: none; font-weight: 600; }
+    a.osu-link:hover { text-decoration: underline; }
+    .tag { display: inline-block; padding: 1px 7px; border-radius: 999px;
+           font-size: 11px; font-weight: 600; }
+    .tag.sup { background: rgba(255,102,170,.18); color: var(--osu); }
+    .tag.badge { background: rgba(251,191,36,.18); color: var(--warning); }
+    .empty {
+      padding: 36px 16px; text-align: center; color: var(--muted);
+    }
+    .notice {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 24px;
+    }
+    .notice.danger { border-color: rgba(248,113,113,.4); }
+    .notice h2 { margin: 0 0 8px; color: var(--danger); font-size: 16px; }
+    .toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+      background: var(--card); border: 1px solid var(--danger);
+      padding: 10px 16px; border-radius: 8px; font-size: 13px;
+      color: var(--danger); display: none; max-width: 90vw;
+    }
+    .toast.show { display: block; }
+
+    @media (max-width: 640px) {
+      body { padding: 18px 12px; }
+      h1 { font-size: 19px; }
+      .header { gap: 8px; margin-bottom: 12px; }
+
+      /* Collapse the table into stacked cards */
+      table, thead, tbody, tr, td { display: block; width: 100%; }
+      table { border: 0; background: transparent; border-radius: 0; overflow: visible; }
+      thead { display: none; }
+      tr {
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 10px; margin-bottom: 12px; padding: 12px 14px;
+      }
+      tr:last-child { margin-bottom: 0; }
+      tr:hover td { background: transparent; }
+      td {
+        border-bottom: 0; padding: 5px 0; font-size: 13px;
+        display: flex; justify-content: space-between; align-items: baseline;
+        gap: 14px; text-align: right;
+      }
+      td::before {
+        content: attr(data-label); color: var(--muted);
+        font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+        font-weight: 600; text-align: left; flex: 0 0 auto;
+      }
+      td.num { text-align: right; }
+      /* osu! username becomes the card header */
+      td:first-child {
+        display: block; text-align: left; font-size: 15px;
+        padding: 0 0 8px; margin-bottom: 6px;
+        border-bottom: 1px solid var(--border);
+      }
+      td:first-child::before { display: none; }
+      td:last-child { justify-content: flex-end; flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div>
+      <h1 id="title">Linked players</h1>
+      <div class="sub" id="sub">Loading…</div>
+    </div>
+    <div class="stats" id="stats" style="display:none;"></div>
+  </div>
+
+  <input class="search" id="search" type="search" placeholder="Filter by osu! username or country…" oninput="render()">
+
+  <div id="content"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const BASE_URL = "{{BASE_URL}}";
+const GUILD_ID = "{{GUILD_ID}}";
+let state = null;
+
+async function load() {
+  try {
+    const r = await fetch(BASE_URL + '/users/' + GUILD_ID + '/data', { credentials: 'include' });
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      renderError(r.status, body.error || 'Could not load player list.');
+      return;
+    }
+    state = await r.json();
+    document.getElementById('title').textContent =
+      'Linked players' + (state.guild_name ? ' — ' + state.guild_name : '');
+    document.getElementById('sub').textContent =
+      state.count === 0
+        ? 'No server members have linked an osu! account yet.'
+        : 'Server members who have linked their osu! account.';
+    document.getElementById('stats').style.display = '';
+    document.getElementById('stats').textContent = state.count + ' linked';
+    render();
+  } catch (e) {
+    renderError(0, String(e));
+  }
+}
+
+function render() {
+  if (!state) return;
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const users = state.users.filter(u => {
+    if (!q) return true;
+    return (u.osu_username || '').toLowerCase().includes(q)
+        || (u.country_code || '').toLowerCase().includes(q)
+        || (u.discord_name || '').toLowerCase().includes(q);
+  });
+
+  const c = document.getElementById('content');
+  if (state.users.length === 0) {
+    c.innerHTML = '<div class="empty">No linked players yet. Share <code>' +
+      BASE_URL + '/verify</code> with your server members.</div>';
+    return;
+  }
+  if (users.length === 0) {
+    c.innerHTML = '<div class="empty">No players match your filter.</div>';
+    return;
+  }
+  const rows = users.map(u => {
+    const tags = [
+      u.is_supporter ? '<span class="tag sup">supporter</span>' : '',
+      u.badge_count > 0 ? '<span class="tag badge">' + u.badge_count + ' badge' + (u.badge_count !== 1 ? 's' : '') + '</span>' : ''
+    ].filter(Boolean).join(' ');
+    return `
+    <tr>
+      <td data-label="osu! username">
+        <a class="osu-link" href="${escapeAttr(u.osu_profile_url)}" target="_blank" rel="noopener">${escapeHtml(u.osu_username || '?')}</a>
+        ${u.country_code ? '<span style="color:var(--muted);font-size:12px;"> &middot; ' + escapeHtml(u.country_code) + '</span>' : ''}
+      </td>
+      <td data-label="Discord" style="color:var(--muted);">${escapeHtml(u.discord_name || u.discord_id)}</td>
+      <td class="num" data-label="Global rank">${u.global_rank == null ? '—' : '#' + fmt(u.global_rank)}</td>
+      <td class="num" data-label="PP">${fmt(u.performance_points)} pp</td>
+      <td class="num" data-label="Play count">${fmt(u.play_count)}</td>
+      <td data-label="Tags">${tags || '<span style="color:var(--muted);">—</span>'}</td>
+    </tr>
+  `;
+  }).join('');
+  c.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>osu! username</th>
+        <th>Discord</th>
+        <th style="text-align:right;">Global rank (osu)</th>
+        <th style="text-align:right;">PP (osu)</th>
+        <th style="text-align:right;">Play count (osu)</th>
+        <th>Tags</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderError(status, msg) {
+  const c = document.getElementById('content');
+  document.getElementById('sub').textContent = '';
+  const isAuth = status === 401 || status === 403;
+  c.innerHTML = `
+    <div class="notice danger">
+      <h2>${isAuth ? 'Access denied' : 'Could not load list'}</h2>
+      <p style="color:var(--muted);margin:0;">${escapeHtml(msg)}</p>
+      ${isAuth ? `<p style="color:var(--muted);margin-top:10px;">If you're a member of this server, try <a href="/auth/login?return_to=${encodeURIComponent(location.pathname)}" style="color:var(--osu);">signing in with Discord</a>.</p>` : ''}
+    </div>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]
+  ));
+}
+function escapeAttr(s) { return escapeHtml(s).replace(/`/g, '&#96;'); }
+function fmt(n) { return (n ?? 0).toLocaleString(); }
+
+load();
+</script>
+</body>
+</html>
