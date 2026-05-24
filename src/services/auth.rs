@@ -220,8 +220,11 @@ pub async fn guild_members(
         })
         .unwrap_or_default();
 
+    // Pass the plugin slug so users who opted out of this plugin (or the
+    // whole guild) are stripped from the returned member set — the public
+    // players page then naturally excludes them.
     let url = format!(
-        "{}/auth/guild_members?guild_id={guild_id}",
+        "{}/auth/guild_members?guild_id={guild_id}&plugin=osu-player-role",
         state.config.auth_gateway_url
     );
     let resp = state

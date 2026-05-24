@@ -147,7 +147,6 @@
 // ===========================================================================
 const BASE_URL="__BASE_URL__", GUILD_ID="__GUILD_ID__", ROLE_ID="__ROLE_ID__";
 const IFRAME_TOKEN="__IFRAME_TOKEN__", IS_EMBEDDED=!!IFRAME_TOKEN;
-const VERIFY_URL = BASE_URL + "/verify";
 const TEAM_GROUPS = ["BN","GMT","NAT","DEV","ALM","BSC"];
 
 function postToHost(m){ if(!IS_EMBEDDED) return; try{ parent.postMessage(m,'*'); }catch(_){} }
@@ -301,6 +300,10 @@ function modeLabel(k){ const m=(state.modes||[]).find(x=>x.key===k); return m?m.
 function render(){
   const cfg=state._edit, app=document.getElementById('app');
   const cur=state._preset;
+  // Per-guild verify URL from the data endpoint (carries `?guild=<id>` so
+  // that members opening it auto-clear any prior opt-out for this server).
+  // Fall back to the bare /verify path so older data responses keep working.
+  const verifyUrl=state.verify_url||(BASE_URL+"/verify");
 
   const opts=presets().map(p=>{
     const on=(cur===p.id);
@@ -379,8 +382,8 @@ function render(){
     ${modeBlk}
     <div class="share"><b>One thing your members must do:</b> they have to link their
       osu! account once, here — until they do, they won't get the role even if they qualify.
-      <div class="copybox"><code id="vurl">${esc(VERIFY_URL)}</code>
-        <a class="btn-open" href="${esc(VERIFY_URL)}" target="_blank" rel="noopener noreferrer">Open</a>
+      <div class="copybox"><code id="vurl">${esc(verifyUrl)}</code>
+        <a class="btn-open" href="${esc(verifyUrl)}" target="_blank" rel="noopener noreferrer">Open</a>
         <button id="copy">Copy link</button></div>
       ${oauthWarn}
     </div>
@@ -396,7 +399,7 @@ function render(){
   app.querySelectorAll('input[name=who]').forEach(r=>r.addEventListener('change',()=>choose(r.value)));
   app.querySelectorAll('input[name=mode]').forEach(r=>r.addEventListener('change',()=>{
     cfg.default_mode=r.value; recomputeDirty(); render(); autoPreview(); }));
-  wireCopy('copy', VERIFY_URL);
+  wireCopy('copy', verifyUrl);
   wireCopy('copysup', sup.url);
   app.querySelectorAll('input[name=vp]').forEach(r=>r.addEventListener('change',()=>setViewPerm(r.value)));
   const tn=document.getElementById('tn'); if(tn) tn.addEventListener('input',e=>{
