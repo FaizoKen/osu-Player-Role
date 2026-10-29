@@ -418,6 +418,8 @@ pub async fn sync_for_role_link(
             delete_orphan_role_link(guild_id, role_id, pool).await;
             return Ok(());
         }
+        Err(AppError::RoleLinkDisabled) => return Ok(()),
+        Err(AppError::RemovalHeld) => return removal_held(guild_id, role_id),
         Err(e) => return Err(e),
     }
 
@@ -471,6 +473,8 @@ async fn drain_to_empty(
             delete_orphan_role_link(guild_id, role_id, &state.pool).await;
             return Ok(());
         }
+        Err(AppError::RoleLinkDisabled) => return Ok(()),
+        Err(AppError::RemovalHeld) => return removal_held(guild_id, role_id),
         Err(e) => return Err(e),
     }
     sqlx::query("DELETE FROM role_assignments WHERE guild_id=$1 AND role_id=$2")
@@ -478,6 +482,20 @@ async fn drain_to_empty(
         .bind(role_id)
         .execute(&state.pool)
         .await?;
+    Ok(())
+}
+
+/// RoleLogic is holding this link's write until an owner confirms the
+/// removals (Safe Apply's shrink gate). That is a decision waiting on a
+/// person, not a failure: leave the local mirror as it was. Confirming lets
+/// the next write through for an hour, and reconcile re-queues every link's
+/// config_sync every 30 min, so the confirmed write lands inside that hour.
+fn removal_held(guild_id: &str, role_id: &str) -> Result<(), AppError> {
+    tracing::info!(
+        guild_id,
+        role_id,
+        "RoleLogic is holding this link's removals for owner confirmation; reconcile re-checks it"
+    );
     Ok(())
 }
 
