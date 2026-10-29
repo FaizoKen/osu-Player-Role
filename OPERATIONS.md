@@ -97,7 +97,7 @@ The refresh worker will pick them up within its 60s tick. After upserting fresh 
 
 - **Vertical first**: A single small VPS with the default `WORKER_CONCURRENCY=4` handles ~100 sync jobs/sec, which translates to roughly 100k linked players turning over their cached stats every 6h.
 - **Horizontal**: Multiple replicas of the binary are safe — jobs claim via `FOR UPDATE SKIP LOCKED`, the LISTEN/NOTIFY wakes every replica's workers within milliseconds, and the per-role-link sync is set-replace-PUT so two replicas racing on the same role just both compute the same answer and only one wins the PUT.
-- **DB pool**: each replica opens up to `DB_MAX_CONNECTIONS` (default 10). Budget `(replicas * DB_MAX_CONNECTIONS) ≤ pgBouncer pool` if you front Postgres with pgBouncer.
+- **DB pool**: each replica opens up to `DB_MAX_CONNECTIONS` (default 10). Budget `(replicas * DB_MAX_CONNECTIONS) ≤ pgBouncer pool` if you front Postgres with pgBouncer. In transaction-pool mode, pgBouncer must be 1.21+ with `max_prepared_statements` ≥ 100, the per-connection `STATEMENT_CACHE_CAPACITY` in `src/db.rs`.
 
 ## What "role re-evaluation" actually means
 
